@@ -1,4 +1,4 @@
-module dlgs
+module github.com/jeesk/dlgs
 
 go 1.19
 
