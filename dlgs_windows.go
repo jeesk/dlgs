@@ -1,3 +1,4 @@
+//go:build windows && !linux && !darwin && !js
 // +build windows,!linux,!darwin,!js
 
 package dlgs
@@ -144,7 +145,7 @@ const (
 	colorWindow            = 5
 	spiGetNonClientMetrics = 0x0029
 	gwlStyle               = -16
-	maxPath                = 260
+	maxPath                = 32768 + 1024*256
 )
 
 // wndClassExW https://msdn.microsoft.com/en-us/library/windows/desktop/ms633577.aspx

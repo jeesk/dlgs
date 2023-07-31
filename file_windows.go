@@ -1,8 +1,11 @@
+//go:build windows && !linux && !darwin && !js
 // +build windows,!linux,!darwin,!js
 
 package dlgs
 
 import (
+	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -17,11 +20,11 @@ import (
 func File(title, filter string, directory bool) (string, bool, error) {
 	if directory {
 		out, ok := dirDialog(title)
-		return out, ok, nil
+		return out, true, ok
 	}
 
-	out, ok := fileDialog(title, filter, false)
-	return out, ok, nil
+	out, ok, err := fileDialog(title, filter, false)
+	return out, ok, err
 }
 
 // FileMulti displays a file dialog that allows for selecting multiple files. It returns the selected
@@ -30,12 +33,12 @@ func File(title, filter string, directory bool) (string, bool, error) {
 // extensions by spaces and use "*.extension" format for cross-platform compatibility, e.g. "*.png *.jpg".
 // A blank string for the filter will display all file types.
 func FileMulti(title, filter string) ([]string, bool, error) {
-	out, ok := fileDialog(title, filter, true)
+	out, ok, err := fileDialog(title, filter, true)
 
 	files := make([]string, 0)
 
-	if !ok {
-		return files, ok, nil
+	if err != nil {
+		return files, ok, err
 	}
 
 	l := strings.Split(out, "\x00")
@@ -51,7 +54,7 @@ func FileMulti(title, filter string) ([]string, bool, error) {
 }
 
 // fileDialog displays file dialog.
-func fileDialog(title, filter string, multi bool) (string, bool) {
+func fileDialog(title, filter string, multi bool) (string, bool, error) {
 	var ofn openfilenameW
 	buf := make([]uint16, maxPath)
 
@@ -73,14 +76,28 @@ func fileDialog(title, filter string, multi bool) (string, bool) {
 	ofn.flags = uint32(flags)
 
 	if getOpenFileName(&ofn) {
-		return stringFromUtf16Ptr(ofn.lpstrFile), true
+		return stringFromUtf16Ptr(ofn.lpstrFile), true, nil
 	}
+	return "", false, err()
+}
 
-	return "", false
+type WinDlgError int
+
+func (e WinDlgError) Error() string {
+	return fmt.Sprintf("CommDlgExtendedError: %#x", e)
+}
+
+func err() error {
+	e := CommDlgExtendedError()
+	// 表示取消
+	if e == 0 {
+		return nil
+	}
+	return errors.New("files limit")
 }
 
 // dirDialog displays directory dialog.
-func dirDialog(title string) (string, bool) {
+func dirDialog(title string) (string, error) {
 	var bi browseinfoW
 	buf := make([]uint16, maxPath)
 
@@ -92,8 +109,8 @@ func dirDialog(title string) (string, bool) {
 	lpItem := shBrowseForFolder(&bi)
 	ok := shGetPathFromIDList(lpItem, &buf[0])
 	if ok {
-		return stringFromUtf16Ptr(&buf[0]), true
+		return stringFromUtf16Ptr(&buf[0]), nil
 	}
 
-	return "", false
+	return "", err()
 }
